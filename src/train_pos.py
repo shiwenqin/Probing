@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import logging as log
 import torch
+import argparse
 from tqdm import tqdm
 
 from model.pooling import AttentionPooler
@@ -17,13 +18,19 @@ log.basicConfig(level=log.INFO)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 log.info(f'Using device: {device}')
 
+# Configuration 
+parser = argparse.ArgumentParser()
+parser.add_argument('-b', '--base_model', type=str, default='bert-base-uncased', help='Base model to use')
+parser.add_argument('-l', '--layer_to_probe', type=int, default=12, help='Number of layers in the base model')
+args = parser.parse_args()
+
 # Model Configuration
-BERT_MODEL = 'bert-base-uncased'
+BERT_MODEL = args.base_model
 NUM_LAYERS = 12
 POOLING_INPUT_DIM = 768
 POOLING_HIDDEN_DIM = 256
 MLP_HIDDEN_DIM = 256
-LAYER_TO_PROBE = 12
+LAYER_TO_PROBE = args.layer_to_probe
 SINGLE_SPAN = True
 NUM_CLASSES = 51
 
@@ -36,6 +43,23 @@ TEST_FILE = '../dataset/ontonotesv5_english_v12_test_processed.parquet'
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-4
 EPOCHS = 50
+GRADIENT_CLIP = 5.0
+EARLY_STOP_PATIENCE = 10
+
+wandb.init(project='pos-probing', 
+           config={'base_model': BERT_MODEL,
+                   'num_layers': NUM_LAYERS,
+                   'pooling_input_dim': POOLING_INPUT_DIM,
+                   'pooling_hidden_dim': POOLING_HIDDEN_DIM,
+                   'mlp_hidden_dim': MLP_HIDDEN_DIM,
+                   'layer_to_probe': LAYER_TO_PROBE,
+                   'single_span': SINGLE_SPAN,
+                   'num_classes': NUM_CLASSES,
+                   'batch_size': BATCH_SIZE,
+                   'learning_rate': LEARNING_RATE,
+                   'epochs': EPOCHS,
+                   'gradient_clip': GRADIENT_CLIP,
+                   'early_stop_patience': EARLY_STOP_PATIENCE,})
 
 # Load models
 log.info('Loading models...')
@@ -43,7 +67,7 @@ subject_model = BERTHuggingFace(BERT_MODEL, NUM_LAYERS).to(device)
 pooling_model = AttentionPooler(POOLING_INPUT_DIM, POOLING_HIDDEN_DIM, LAYER_TO_PROBE, SINGLE_SPAN).to(device)
 mlp_model = MLP(POOLING_HIDDEN_DIM, MLP_HIDDEN_DIM, NUM_CLASSES, dropout=0.3, single_span=SINGLE_SPAN).to(device)
 probing_model = ProbingPair(subject_model, pooling_model, mlp_model).to(device)
-probing_model = torch.compile(probing_model)
+# probing_model = torch.compile(probing_model)
 
 # Load tokenizer
 log.info('Loading tokenizer...')
@@ -57,7 +81,7 @@ test_df = pd.read_parquet(TEST_FILE, columns=['sentence', 'pos_index', 'pos_labe
 
 # Training Setup
 log.info('Setting up training...')
-optimizer = torch.optim.Adam(probing_model.parameters(), lr=LEARNING_RATE)
+optimizer = torch.optim.AdamW(probing_model.parameters(), lr=LEARNING_RATE)
 criterion = torch.nn.CrossEntropyLoss()
 
 # Define utility functions
@@ -94,10 +118,27 @@ def get_span_batch(sentences, tokenizer, indexes):
         spans.append(span)
     return spans
 
-# Training Loop
+class EarlyStopper:
+    def __init__(self, patience=1, min_delta=0):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_validation_loss = float('inf')
+
+    def early_stop(self, validation_loss):
+        if validation_loss < self.min_validation_loss:
+            self.min_validation_loss = validation_loss
+            self.counter = 0
+        elif validation_loss > (self.min_validation_loss + self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
+
+# Define Training Loop
 log.info('Starting training...')
 
-def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, device):
+def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, device, early_stopper):
     model.train()
     train_loss = 0
     train_acc = 0
@@ -111,6 +152,7 @@ def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, dev
         outputs = model([inputs, target_spans])
         loss = criterion(outputs, target_labels)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), GRADIENT_CLIP)
         optimizer.step()
         train_loss += loss.item()
         train_acc += (outputs.argmax(1) == target_labels).sum().item()
@@ -137,7 +179,31 @@ def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, dev
     val_acc /= len(val_data)
     return train_loss, train_acc, val_loss, val_acc
 
+# Training Loop
+early_stopper = EarlyStopper(patience=5, min_delta=0.001)
 for epoch in range(EPOCHS):
-    train_loss, train_acc, val_loss, val_acc = epoch_step(probing_model, criterion, optimizer, train_df, val_df, tokenizer, device)
+    train_loss, train_acc, val_loss, val_acc = epoch_step(probing_model, criterion, optimizer, train_df, val_df, tokenizer, device, early_stopper)
     log.info(f'Epoch {epoch + 1}/{EPOCHS} - Train Loss: {train_loss:.4f} - Train Acc: {train_acc:.4f} - Val Loss: {val_loss:.4f} - Val Acc: {val_acc:.4f}')
-    
+    wandb.log({'train_loss': train_loss, 'train_acc': train_acc, 'val_loss': val_loss, 'val_acc': val_acc})
+    if early_stopper.early_stop(val_loss):
+        log.info(f'Early stopping at epoch {epoch + 1}')
+        break
+
+# Testing
+log.info('Testing...')
+probing_model.eval()
+test_loss = 0
+test_acc = 0
+for batch in tqdm(np.array_split(test_df, len(test_df) // BATCH_SIZE), desc='Testing'):
+    inputs = encode_batch(batch, tokenizer).to(device)
+    target_spans = get_span_batch(batch['sentence'], tokenizer, batch['pos_index'].tolist())
+    target_spans = torch.tensor(target_spans, device=device)
+    target_labels = torch.tensor(batch['pos_label'].values, device=device)
+    outputs = probing_model([inputs, target_spans])
+    loss = criterion(outputs, target_labels)
+    test_loss += loss.item()
+    test_acc += (outputs.argmax(1) == target_labels).sum().item()
+test_loss /= len(test_df)
+test_acc /= len(test_df)
+log.info(f'Test Loss: {test_loss:.4f} - Test Acc: {test_acc:.4f}')
+wandb.log({'test_loss': test_loss, 'test_acc': test_acc})
