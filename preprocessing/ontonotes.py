@@ -49,11 +49,22 @@ class PreprocessOntonotes():
 
         if self.is_train:
             df = df.drop_duplicates(subset=['sentence'], keep='first')
+
+        df = self._exclude_empty_pos(df)
         
         df = self._get_pos_label(df)
 
         log.info('Preprocessing completed.')
         log.info('Preprocessed dataset shape: {}'.format(df.shape))
+        return df
+    
+    def _exclude_empty_pos(self, df):
+
+        def _check_empty(pos_tags):
+            percent_zeros = pos_tags.count(0) / len(pos_tags)
+            return percent_zeros >= 0.6
+        
+        df = df[~df.pos_tags.apply(_check_empty)]
         return df
     
     def _get_pos_label(self, df):
@@ -77,8 +88,8 @@ class PreprocessOntonotes():
 if __name__ == '__main__':
     # test validation
 
-    path = '../dataset/ontonotesv5_english_v12_test.parquet'
-    save_path = '../dataset/ontonotesv5_english_v12_test_processed.csv'
+    path = '../dataset/ontonotesv5_english_v12_validation.parquet'
+    save_path = '../dataset/ontonotesv5_english_v12_validation_processed_excludepos.csv'
     preprocess = PreprocessOntonotes(path, is_train=False)
     df = preprocess.preprocess()
     preprocess.save(save_path, df)
