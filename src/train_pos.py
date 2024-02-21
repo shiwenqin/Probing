@@ -5,6 +5,8 @@ import logging as log
 import torch
 import argparse
 from tqdm import tqdm
+import warnings
+warnings.filterwarnings('ignore')
 
 from model.pooling import AttentionPooler
 from model.probing_pair import ProbingPair
@@ -35,16 +37,16 @@ SINGLE_SPAN = True
 NUM_CLASSES = 51
 
 # Data Configuration
-TRAIN_FILE = '../dataset/ontonotesv5_english_v12_train_processed.parquet'
-VAL_FILE = '../dataset/ontonotesv5_english_v12_validation_processed.parquet'
-TEST_FILE = '../dataset/ontonotesv5_english_v12_test_processed.parquet'
+TRAIN_FILE = '../dataset/ontonotesv5_english_v12_train_processed_excludepos.parquet'
+VAL_FILE = '../dataset/ontonotesv5_english_v12_validation_processed_excludepos.parquet'
+TEST_FILE = '../dataset/ontonotesv5_english_v12_test_processed_excludepos.parquet'
 
 # Training Configuration
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 LEARNING_RATE = 1e-4
-EPOCHS = 50
+EPOCHS = 10
 GRADIENT_CLIP = 5.0
-EARLY_STOP_PATIENCE = 10
+EARLY_STOP_PATIENCE = 5
 
 wandb.init(project='pos-probing', 
            config={'base_model': BERT_MODEL,
@@ -139,6 +141,7 @@ class EarlyStopper:
 log.info('Starting training...')
 
 def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, device, early_stopper):
+    train_data = train_data.sample(frac=1).reset_index(drop=True)
     model.train()
     train_loss = 0
     train_acc = 0
@@ -155,11 +158,8 @@ def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, dev
         torch.nn.utils.clip_grad_norm_(model.parameters(), GRADIENT_CLIP)
         optimizer.step()
         train_loss += loss.item()
-        train_acc += (outputs.argmax(1) == target_labels).sum().item()
-        # print(outputs.argmax(1))
-        # print(target_labels)
-        # print(train_loss)
-        # raise
+        outputs_softmax = torch.nn.functional.softmax(outputs, dim=1)
+        train_acc += (outputs_softmax.argmax(1) == target_labels).sum().item()
 
     train_loss /= len(train_data)
     train_acc /= len(train_data)
@@ -174,13 +174,14 @@ def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, dev
         outputs = model([inputs, target_spans])
         loss = criterion(outputs, target_labels)
         val_loss += loss.item()
-        val_acc += (outputs.argmax(1) == target_labels).sum().item()
+        outputs_softmax = torch.nn.functional.softmax(outputs, dim=1)
+        val_acc += (outputs_softmax.argmax(1) == target_labels).sum().item()
     val_loss /= len(val_data)
     val_acc /= len(val_data)
     return train_loss, train_acc, val_loss, val_acc
 
 # Training Loop
-early_stopper = EarlyStopper(patience=5, min_delta=0.001)
+early_stopper = EarlyStopper(patience=EARLY_STOP_PATIENCE, min_delta=0.001)
 for epoch in range(EPOCHS):
     train_loss, train_acc, val_loss, val_acc = epoch_step(probing_model, criterion, optimizer, train_df, val_df, tokenizer, device, early_stopper)
     log.info(f'Epoch {epoch + 1}/{EPOCHS} - Train Loss: {train_loss:.4f} - Train Acc: {train_acc:.4f} - Val Loss: {val_loss:.4f} - Val Acc: {val_acc:.4f}')
@@ -194,6 +195,7 @@ log.info('Testing...')
 probing_model.eval()
 test_loss = 0
 test_acc = 0
+
 for batch in tqdm(np.array_split(test_df, len(test_df) // BATCH_SIZE), desc='Testing'):
     inputs = encode_batch(batch, tokenizer).to(device)
     target_spans = get_span_batch(batch['sentence'], tokenizer, batch['pos_index'].tolist())
@@ -202,7 +204,9 @@ for batch in tqdm(np.array_split(test_df, len(test_df) // BATCH_SIZE), desc='Tes
     outputs = probing_model([inputs, target_spans])
     loss = criterion(outputs, target_labels)
     test_loss += loss.item()
-    test_acc += (outputs.argmax(1) == target_labels).sum().item()
+    outputs_softmax = torch.nn.functional.softmax(outputs, dim=1)
+    test_acc += (outputs_softmax.argmax(1) == target_labels).sum().item()
+
 test_loss /= len(test_df)
 test_acc /= len(test_df)
 log.info(f'Test Loss: {test_loss:.4f} - Test Acc: {test_acc:.4f}')
