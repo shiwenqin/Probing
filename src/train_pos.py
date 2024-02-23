@@ -49,11 +49,11 @@ TRAIN_PERCENTAGE = args.train_percentage
 # Training Configuration
 BATCH_SIZE = args.batch_size
 LEARNING_RATE = 1e-4
-EPOCHS = 10
+EPOCHS = args.epochs
 GRADIENT_CLIP = 5.0
 EARLY_STOP_PATIENCE = 5
 
-wandb.init(project='pos-probing', 
+wandb.init(project='pos-probing-exp', 
            config={'base_model': BERT_MODEL,
                    'num_layers': NUM_LAYERS,
                    'pooling_input_dim': POOLING_INPUT_DIM,
