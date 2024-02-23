@@ -28,6 +28,11 @@ class PreprocessOntonotes():
                         pd.DataFrame(df['sentences'].tolist())], 
                     axis=1)
         df = df[['document_id', 'words', 'pos_tags', 'named_entities']]
+
+        if self.is_train:
+            # Remove instances with sentence no longer than 15 words
+            df = df[df['words'].apply(len) > 15]
+
         df['sentence'] = df['words'].apply(lambda x: ' '.join(x))
         df = df.drop(['words'], axis=1)
 
@@ -52,7 +57,7 @@ class PreprocessOntonotes():
 
         df = self._exclude_empty_pos(df)
         
-        df = self._get_pos_label(df)
+        # df = self._get_pos_label(df)
 
         log.info('Preprocessing completed.')
         log.info('Preprocessed dataset shape: {}'.format(df.shape))
@@ -67,15 +72,15 @@ class PreprocessOntonotes():
         df = df[~df.pos_tags.apply(_check_empty)]
         return df
     
-    def _get_pos_label(self, df):
+    # def _get_pos_label(self, df):
 
-        def _choose_pos(pos_tags):
-            rand = randint(0, len(pos_tags)-1)
-            return rand, pos_tags[rand]
+    #     def _choose_pos(pos_tags):
+    #         rand = randint(0, len(pos_tags)-1)
+    #         return rand, pos_tags[rand]
         
-        df.loc[:, 'pos_index'], df.loc[:, 'pos_label'] = zip(*df.pos_tags.apply(_choose_pos))
+    #     df.loc[:, 'pos_index'], df.loc[:, 'pos_label'] = zip(*df.pos_tags.apply(_choose_pos))
 
-        return df
+    #     return df
     
     def save(self, path, df):
 
@@ -86,11 +91,11 @@ class PreprocessOntonotes():
         return
     
 if __name__ == '__main__':
-    # test validation
+    # test validation train
 
-    path = '../dataset/ontonotesv5_english_v12_validation.parquet'
-    save_path = '../dataset/ontonotesv5_english_v12_validation_processed_excludepos.csv'
-    preprocess = PreprocessOntonotes(path, is_train=False)
+    path = '../dataset/ontonotesv5_english_v12_train.parquet'
+    save_path = '../dataset/ontonotesv5_english_v12_train_processed.csv'
+    preprocess = PreprocessOntonotes(path, is_train=True)
     df = preprocess.preprocess()
     preprocess.save(save_path, df)
     print(df.head())
