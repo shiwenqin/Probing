@@ -12,6 +12,7 @@ from model.pooling import AttentionPooler
 from model.probing_pair import ProbingPair
 from model.mlp import MLP
 from model.bert import BERTHuggingFace
+from train_utils import EarlyStopper, encode_batch, get_word_spans
 
 from transformers import BertTokenizer
 
@@ -22,8 +23,11 @@ log.info(f'Using device: {device}')
 
 # Configuration 
 parser = argparse.ArgumentParser()
-parser.add_argument('-b', '--base_model', type=str, default='bert-base-uncased', help='Base model to use')
+parser.add_argument('-m', '--base_model', type=str, default='bert-base-uncased', help='Base model to use')
 parser.add_argument('-l', '--layer_to_probe', type=int, default=12, help='Number of layers in the base model')
+parser.add_argument('-b', '--batch_size', type=int, default=32, help='Batch size for training')
+parser.add_argument('-e', '--epochs', type=int, default=10, help='Number of epochs for training')
+parser.add_argument('-t', '--train_percentage', type=float, default=0.5, help='Percentage of training data to use each epoch')
 args = parser.parse_args()
 
 # Model Configuration
@@ -37,12 +41,13 @@ SINGLE_SPAN = True
 NUM_CLASSES = 51
 
 # Data Configuration
-TRAIN_FILE = '../dataset/ontonotesv5_english_v12_train_processed_excludepos.parquet'
-VAL_FILE = '../dataset/ontonotesv5_english_v12_validation_processed_excludepos.parquet'
-TEST_FILE = '../dataset/ontonotesv5_english_v12_test_processed_excludepos.parquet'
+TRAIN_FILE = '../dataset/ontonotesv5_english_v12_train_processed.parquet'
+VAL_FILE = '../dataset/ontonotesv5_english_v12_validation_processed.parquet'
+TEST_FILE = '../dataset/ontonotesv5_english_v12_test_processed.parquet'
+TRAIN_PERCENTAGE = args.train_percentage
 
 # Training Configuration
-BATCH_SIZE = 64
+BATCH_SIZE = args.batch_size
 LEARNING_RATE = 1e-4
 EPOCHS = 10
 GRADIENT_CLIP = 5.0
@@ -69,7 +74,6 @@ subject_model = BERTHuggingFace(BERT_MODEL, NUM_LAYERS).to(device)
 pooling_model = AttentionPooler(POOLING_INPUT_DIM, POOLING_HIDDEN_DIM, LAYER_TO_PROBE, SINGLE_SPAN).to(device)
 mlp_model = MLP(POOLING_HIDDEN_DIM, MLP_HIDDEN_DIM, NUM_CLASSES, dropout=0.3, single_span=SINGLE_SPAN).to(device)
 probing_model = ProbingPair(subject_model, pooling_model, mlp_model).to(device)
-# probing_model = torch.compile(probing_model)
 
 # Load tokenizer
 log.info('Loading tokenizer...')
@@ -77,81 +81,31 @@ tokenizer = BertTokenizer.from_pretrained(BERT_MODEL)
 
 # Load data
 log.info('Loading data...')
-train_df = pd.read_parquet(TRAIN_FILE, columns=['sentence', 'pos_index', 'pos_label'])
-val_df = pd.read_parquet(VAL_FILE, columns=['sentence', 'pos_index', 'pos_label'])
-test_df = pd.read_parquet(TEST_FILE, columns=['sentence', 'pos_index', 'pos_label'])
+train_df = pd.read_parquet(TRAIN_FILE, columns=['sentence','pos_tags'])
+val_df = pd.read_parquet(VAL_FILE, columns=['sentence','pos_tags'])
+test_df = pd.read_parquet(TEST_FILE, columns=['sentence','pos_tags'])
 
 # Training Setup
 log.info('Setting up training...')
 optimizer = torch.optim.AdamW(probing_model.parameters(), lr=LEARNING_RATE)
 criterion = torch.nn.CrossEntropyLoss()
 
-# Define utility functions
-def encode_batch(batch, tokenizer):
-    """
-    :param batch: a pandas DataFrame with columns 'sentence' and 'target_spans'.
-    :param tokenizer: a tokenizer object from the HuggingFace's transformers library.
-    """
-    inputs = tokenizer(batch['sentence'].tolist(), return_tensors='pt', padding='longest', add_special_tokens=False)
-    return inputs
-
-def tokenize_sentence(sentence, tokenizer):
-    tokenized_sentence = tokenizer.tokenize(sentence)
-    full_word_indexes = []
-    word_index = -1
-    for token in tokenized_sentence:
-        if token.startswith("##"):
-            full_word_indexes.append(word_index)
-        else:
-            word_index += 1
-            full_word_indexes.append(word_index)
-    return full_word_indexes
-
-def find_first_last_occurrences(lst, element, i):
-    first_occurrence = lst.index(element) if element in lst else -1
-    last_occurrence = len(lst) - 1 - lst[::-1].index(element) if element in lst else -1
-    return i, first_occurrence, last_occurrence + 1
-
-def get_span_batch(sentences, tokenizer, indexes):
-    spans = []
-    for i, sentence in enumerate(sentences):
-        full_word_index = tokenize_sentence(sentence, tokenizer)
-        span = find_first_last_occurrences(full_word_index, indexes[i], i)
-        spans.append(span)
-    return spans
-
-class EarlyStopper:
-    def __init__(self, patience=1, min_delta=0):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.min_validation_loss = float('inf')
-
-    def early_stop(self, validation_loss):
-        if validation_loss < self.min_validation_loss:
-            self.min_validation_loss = validation_loss
-            self.counter = 0
-        elif validation_loss > (self.min_validation_loss + self.min_delta):
-            self.counter += 1
-            if self.counter >= self.patience:
-                return True
-        return False
-
 # Define Training Loop
 log.info('Starting training...')
 
-def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, device, early_stopper):
-    train_data = train_data.sample(frac=1).reset_index(drop=True)
+def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, device):
+    train_data = train_data.sample(frac=TRAIN_PERCENTAGE).reset_index(drop=True)
     model.train()
     train_loss = 0
     train_acc = 0
+    train_num = 0
     for batch in tqdm(np.array_split(train_data, len(train_data) // BATCH_SIZE), desc='Training'):
         optimizer.zero_grad()
         inputs = encode_batch(batch, tokenizer).to(device)
-        target_spans = get_span_batch(batch['sentence'], tokenizer, batch['pos_index'].tolist())
+        target_spans = get_word_spans(batch['sentence'], tokenizer)
         target_spans = torch.tensor(target_spans, device=device)
-        #print(batch['pos_label'])
-        target_labels = torch.tensor(batch['pos_label'].values, device=device)
+        target_labels = torch.tensor(np.concatenate(batch['pos_tags'].values), device=device)
+        train_num += len(target_labels)
         outputs = model([inputs, target_spans])
         loss = criterion(outputs, target_labels)
         loss.backward()
@@ -162,28 +116,30 @@ def epoch_step(model, criterion, optimizer, train_data, val_data, tokenizer, dev
         train_acc += (outputs_softmax.argmax(1) == target_labels).sum().item()
 
     train_loss /= len(train_data)
-    train_acc /= len(train_data)
+    train_acc /= train_num
     model.eval()
     val_loss = 0
     val_acc = 0
+    val_num = 0 
     for batch in tqdm(np.array_split(val_data, len(val_data) // BATCH_SIZE), desc='Validation'):
         inputs = encode_batch(batch, tokenizer).to(device)
-        target_spans = get_span_batch(batch['sentence'], tokenizer, batch['pos_index'].tolist())
+        target_spans = get_word_spans(batch['sentence'], tokenizer)
         target_spans = torch.tensor(target_spans, device=device)
-        target_labels = torch.tensor(batch['pos_label'].values, device=device)
+        target_labels = torch.tensor(np.concatenate(batch['pos_tags'].values), device=device)
+        val_num += len(target_labels)
         outputs = model([inputs, target_spans])
         loss = criterion(outputs, target_labels)
         val_loss += loss.item()
         outputs_softmax = torch.nn.functional.softmax(outputs, dim=1)
         val_acc += (outputs_softmax.argmax(1) == target_labels).sum().item()
     val_loss /= len(val_data)
-    val_acc /= len(val_data)
+    val_acc /= val_num
     return train_loss, train_acc, val_loss, val_acc
 
 # Training Loop
 early_stopper = EarlyStopper(patience=EARLY_STOP_PATIENCE, min_delta=0.001)
 for epoch in range(EPOCHS):
-    train_loss, train_acc, val_loss, val_acc = epoch_step(probing_model, criterion, optimizer, train_df, val_df, tokenizer, device, early_stopper)
+    train_loss, train_acc, val_loss, val_acc = epoch_step(probing_model, criterion, optimizer, train_df, val_df, tokenizer, device)
     log.info(f'Epoch {epoch + 1}/{EPOCHS} - Train Loss: {train_loss:.4f} - Train Acc: {train_acc:.4f} - Val Loss: {val_loss:.4f} - Val Acc: {val_acc:.4f}')
     wandb.log({'train_loss': train_loss, 'train_acc': train_acc, 'val_loss': val_loss, 'val_acc': val_acc})
     if early_stopper.early_stop(val_loss):
@@ -195,12 +151,13 @@ log.info('Testing...')
 probing_model.eval()
 test_loss = 0
 test_acc = 0
-
+test_num = 0
 for batch in tqdm(np.array_split(test_df, len(test_df) // BATCH_SIZE), desc='Testing'):
     inputs = encode_batch(batch, tokenizer).to(device)
-    target_spans = get_span_batch(batch['sentence'], tokenizer, batch['pos_index'].tolist())
+    target_spans = get_word_spans(batch['sentence'], tokenizer)
     target_spans = torch.tensor(target_spans, device=device)
-    target_labels = torch.tensor(batch['pos_label'].values, device=device)
+    target_labels = torch.tensor(np.concatenate(batch['pos_tags'].values), device=device)
+    test_num += len(target_labels)
     outputs = probing_model([inputs, target_spans])
     loss = criterion(outputs, target_labels)
     test_loss += loss.item()
@@ -208,6 +165,6 @@ for batch in tqdm(np.array_split(test_df, len(test_df) // BATCH_SIZE), desc='Tes
     test_acc += (outputs_softmax.argmax(1) == target_labels).sum().item()
 
 test_loss /= len(test_df)
-test_acc /= len(test_df)
+test_acc /= test_num
 log.info(f'Test Loss: {test_loss:.4f} - Test Acc: {test_acc:.4f}')
 wandb.log({'test_loss': test_loss, 'test_acc': test_acc})
