@@ -25,7 +25,7 @@ def encode_batch(batch, tokenizer):
     inputs = tokenizer(batch['sentence'].tolist(), return_tensors='pt', padding='longest', add_special_tokens=False)
     return inputs
 
-def get_word_spans_individual(sentence_batch, tokenizer):
+def get_word_spans(sentence_batch, tokenizer):
     word_spans = []
     for batch_index, sentence in enumerate(sentence_batch):
         index = 0
