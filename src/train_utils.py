@@ -34,3 +34,30 @@ def get_word_spans(sentence_batch, tokenizer):
             word_spans.append((batch_index, index, index + len(tokenized_word)))
             index += len(tokenized_word)
     return word_spans
+
+def get_spans_semeval(sentence, span1, span2, tokenizer, batch_index):
+    res_span1 = [batch_index,0,0]
+    res_span2 = [batch_index,0,0]
+    current_index = 0
+    for index, word in enumerate(sentence.split()):
+        if index == span1[0]:
+            res_span1[1] = current_index
+        if index == span1[1]:
+            res_span1[2] = current_index
+        if index == span2[0]:
+            res_span2[1] = current_index
+        if index == span2[1]:
+            res_span2[2] = current_index
+        tokenized_word = tokenizer.tokenize(word)
+        current_index += len(tokenized_word)
+    return res_span1, res_span2
+
+def get_spans_semeval_batch(batch, tokenizer):
+    batch.reset_index(drop=True, inplace=True)
+    batch_spans_1 = []
+    batch_spans_2 = []
+    for index, row in batch.iterrows():
+        span1, span2 = get_spans_semeval(row['sentence'], row['e1_span'], row['e2_span'], tokenizer, index)
+        batch_spans_1.append(span1)
+        batch_spans_2.append(span2)
+    return [batch_spans_1, batch_spans_2]
