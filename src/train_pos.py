@@ -14,7 +14,7 @@ from model.mlp import MLP
 from model.bert import BERTHuggingFace
 from train_utils import EarlyStopper, encode_batch, get_word_spans
 
-from transformers import BertTokenizer
+from transformers import AutoTokenizer
 
 log.basicConfig(level=log.INFO)
 
@@ -28,12 +28,14 @@ parser.add_argument('-l', '--layer_to_probe', type=int, default=12, help='Number
 parser.add_argument('-b', '--batch_size', type=int, default=32, help='Batch size for training')
 parser.add_argument('-e', '--epochs', type=int, default=10, help='Number of epochs for training')
 parser.add_argument('-t', '--train_percentage', type=float, default=0.5, help='Percentage of training data to use each epoch')
+parser.add_argument('-n', '--name', type=str, default='pos-probing', help='Name of the experiment')
+parser.add_argument('-d', '--dimension', type=int, default=768, help='Dimension of the hidden layer')
 args = parser.parse_args()
 
 # Model Configuration
 BERT_MODEL = args.base_model
 NUM_LAYERS = 12
-POOLING_INPUT_DIM = 768
+POOLING_INPUT_DIM = args.dimension
 POOLING_HIDDEN_DIM = 256
 MLP_HIDDEN_DIM = 256
 LAYER_TO_PROBE = args.layer_to_probe
@@ -53,7 +55,7 @@ EPOCHS = args.epochs
 GRADIENT_CLIP = 5.0
 EARLY_STOP_PATIENCE = 5
 
-wandb.init(project='pos-probing-exp', 
+wandb.init(project=args.name, 
            config={'base_model': BERT_MODEL,
                    'num_layers': NUM_LAYERS,
                    'pooling_input_dim': POOLING_INPUT_DIM,
@@ -77,7 +79,10 @@ probing_model = ProbingPair(subject_model, pooling_model, mlp_model).to(device)
 
 # Load tokenizer
 log.info('Loading tokenizer...')
-tokenizer = BertTokenizer.from_pretrained(BERT_MODEL)
+tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL)
+if tokenizer.pad_token_id is None:
+    tokenizer.pad_token = tokenizer.eos_token
+    log.info(f'Added padding token: {tokenizer.pad_token}')
 
 # Load data
 log.info('Loading data...')
