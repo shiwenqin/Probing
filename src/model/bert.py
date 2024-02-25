@@ -2,7 +2,7 @@ from abc import abstractmethod, ABC
 
 import torch
 from torch.nn import Module
-from transformers import BertModel
+from transformers import AutoModel
 
 
 class BERT(Module, ABC):
@@ -37,7 +37,7 @@ class BERTHuggingFace(BERT):
         super().__init__(model_name, num_layers)
 
     def _build_bert(self, num_layers):
-        bert = BertModel.from_pretrained(self.model_name, num_hidden_layers=num_layers)
+        bert = AutoModel.from_pretrained(self.model_name)
         return bert
 
 
@@ -48,5 +48,5 @@ class BERTBaseFromLocalCheckpoint(BERT):
 
     def _build_bert(self, num_layers):
         state_dict = torch.load(self.ckpt_path)
-        bert = BertModel.from_pretrained('bert-base-uncased', state_dict=state_dict, num_hidden_layers=num_layers)
+        bert = AutoModel.from_pretrained('bert-base-uncased', state_dict=state_dict, num_hidden_layers=num_layers)
         return bert
