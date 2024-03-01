@@ -1,3 +1,39 @@
+import wandb
+from omegaconf import OmegaConf
+
+class WandbLogger:
+    def __init__(self, cfg):
+        config_dict = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+        wandb.init(
+            project=cfg.wandb.project,
+            name=cfg.wandb.name,
+            config=config_dict,
+        )
+    
+    def log(self, metrics):
+        wandb.log(metrics)
+
+class StatTracker:
+    # Track and Calculate statistics
+    def __init__(self):
+        self.loss = 0
+        self.acc = 0
+        self.num = 0
+        self.f1 = 0
+        self.batch_num = 0
+
+    def update(self, loss, acc, num, f1):
+        self.loss += loss
+        self.acc += acc
+        self.num += num
+        self.f1 += f1   
+        self.batch_num += 1
+
+    def get_stats(self):
+        loss = self.loss / self.num
+        acc = self.acc / self.num
+        f1 = self.f1 / self.batch_num
+        return loss, acc, f1
 
 class EarlyStopper:
     # Standard early stopper
