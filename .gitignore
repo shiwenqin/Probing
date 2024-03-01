@@ -1,5 +1,6 @@
 trail/
 src/wandb/
+src/outputs/
 
 *.sh
 
