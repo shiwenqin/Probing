@@ -1,0 +1,8 @@
+name: mlp
+
+input_dim: ${pooling.hidden_dim}
+hidden_dim: 256
+output_dim: ${task.num_classes}
+
+dropout: 0.3
+single_span: ${task.single_span}

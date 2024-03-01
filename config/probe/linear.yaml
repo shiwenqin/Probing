@@ -1,0 +1,6 @@
+name: linear
+
+input_dim: ${pooling.hidden_dim}
+output_dim: ${task.num_classes}
+
+single_span: ${task.single_span}

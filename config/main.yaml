@@ -1,0 +1,8 @@
+defaults:
+  - task: pos_tagging
+  - model: bert_base
+  - pooling: attention
+  - probe: mlp
+  - _self_
+
+name: default
