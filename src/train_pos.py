@@ -10,9 +10,9 @@ warnings.filterwarnings('ignore')
 
 from model.pooling import AttentionPooler
 from model.probing_pair import ProbingPair
-from model.mlp import MLP
-from model.bert import BERTHuggingFace
-from train_utils import EarlyStopper, encode_batch, get_word_spans
+from model.probe import MLP
+from model.subject import BERTHuggingFace
+from utils import EarlyStopper, encode_batch, get_word_spans
 
 from transformers import AutoTokenizer
 
