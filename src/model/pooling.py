@@ -1,6 +1,12 @@
 import torch
 import torch.nn as nn
 
+def choose_pooler(cfg):
+    if cfg.pooling.name == 'attention':
+        return AttentionPooler(cfg.pooling.input_dim, cfg.pooling.hidden_dim, cfg.pooling.layer_to_probe, cfg.pooling.single_span, cfg.pooling.concat)
+    else:
+        raise ValueError(f'Invalid pooler name: {cfg.pooler.name}')
+
 class AttentionPooler(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, layer_to_probe, single_span, concat=False):
