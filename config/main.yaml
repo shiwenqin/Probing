@@ -3,6 +3,7 @@ defaults:
   - model: bert_base
   - pooling: attention
   - probe: mlp
+  - wandb: default
   - _self_
 
 name: default

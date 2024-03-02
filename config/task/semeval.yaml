@@ -1,0 +1,22 @@
+name: semeval
+data: semeval_2010
+
+# Training Parameters
+batch_size: 64
+epochs: 50
+learning_rate: 1e-4
+gradient_accumulation_steps: 1
+early_stopping_patience: 5
+min_delta: 0.001
+gradient_clip: 5.0
+train_size: 1 # percentage of training data to use each epoch
+
+# Task Specific Parameters
+num_classes: 19
+single_span: false
+concat: true # whether to concatenate the first and current hidden states
+
+# Data
+train_file: ${hydra:runtime.cwd}/../dataset/semeval_2010/train_preprocessed.parquet
+val_file: ${hydra:runtime.cwd}/../dataset/semeval_2010/val_preprocessed.parquet
+test_file: ${hydra:runtime.cwd}/../dataset/semeval_2010/test_preprocessed.parquet
