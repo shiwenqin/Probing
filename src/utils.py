@@ -3,6 +3,10 @@ from omegaconf import OmegaConf
 
 class WandbLogger:
     def __init__(self, cfg):
+        self.active = cfg.wandb.active
+        if not self.active:
+            return
+
         config_dict = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
         wandb.init(
             project=cfg.wandb.project,
@@ -11,6 +15,8 @@ class WandbLogger:
         )
     
     def log(self, metrics):
+        if not self.active:
+            return
         wandb.log(metrics)
 
 class StatTracker:
