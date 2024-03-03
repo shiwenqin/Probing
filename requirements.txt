@@ -4,4 +4,4 @@ numpy
 torch
 tqdm
 transformers
-hydra
+hydra-core
