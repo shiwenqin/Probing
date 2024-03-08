@@ -4,7 +4,6 @@ warnings.filterwarnings('ignore')
 log.getLogger(__name__).setLevel(log.INFO)
 
 import torch
-import wandb
 import hydra
 import pandas as pd
 import numpy as np
@@ -38,6 +37,8 @@ def load_tokenizer(cfg):
     '''
     log.info('Loading tokenizer...')
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.model_path)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
     return tokenizer
 
 def load_data(cfg):
@@ -98,7 +99,6 @@ def val_test_loop(model, cfg, data, tokenizer, criterion):
         f1 = f1_score(target_labels.cpu().numpy(), outputs_softmax.argmax(1).cpu().numpy(), average='micro')
         stats.update(loss.item(), acc, len(target_labels), f1)
     return stats.get_stats()
-
 
 @hydra.main(config_path='../config/', config_name='main')
 def main(cfg):
