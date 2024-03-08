@@ -1,0 +1,7 @@
+name: llama2_7b
+type: decoder
+
+model_path: meta-llama/Llama-2-7b-hf
+output_dim: 4096
+layer_num: 32
+layer_to_probe: 32
