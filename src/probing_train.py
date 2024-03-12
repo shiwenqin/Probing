@@ -1,3 +1,6 @@
+import gc
+import os
+import psutil
 import warnings
 import logging as log
 warnings.filterwarnings('ignore')
@@ -88,16 +91,47 @@ def val_test_loop(model, cfg, data, tokenizer, criterion):
     model.eval()
     stats = utils.StatTracker()
     span_getter = choose_span_getter(cfg)
-    for batch in tqdm(np.array_split(data, len(data) // cfg.task.batch_size), desc='Validation'):
-        inputs = utils.encode_batch(batch, tokenizer).to(device)
-        target_spans = torch.tensor(span_getter.get_span_batch(batch, tokenizer), device=device)
-        target_labels = torch.tensor(span_getter.get_labels(batch), device=device)
-        outputs = model([inputs, target_spans])
-        loss = criterion(outputs, target_labels)
-        outputs_softmax = torch.nn.functional.softmax(outputs, dim=1)
-        acc = (outputs_softmax.argmax(1) == target_labels).sum().item()
-        f1 = f1_score(target_labels.cpu().numpy(), outputs_softmax.argmax(1).cpu().numpy(), average='micro')
-        stats.update(loss.item(), acc, len(target_labels), f1)
+
+    process = psutil.Process(os.getpid())
+    mem_usage = process.memory_info().rss / 1024 / 1024
+    gpu_mem_usage = torch.cuda.memory_allocated() / 1024 / 1024
+    #print(mem_usage, gpu_mem_usage)
+    count = -1
+
+    with torch.no_grad():
+        for batch in tqdm(np.array_split(data, len(data) // cfg.task.batch_size), desc='Validation'):
+            inputs = utils.encode_batch(batch, tokenizer).to(device)
+            target_spans = torch.tensor(span_getter.get_span_batch(batch, tokenizer), device=device)
+            target_labels = torch.tensor(span_getter.get_labels(batch), device=device)
+            # if count % 100 == 0 or count == 363 or count == 364:
+            #     print(inputs['input_ids'].shape)
+            outputs = model([inputs, target_spans])
+            loss = criterion(outputs, target_labels).detach()
+            outputs_softmax = torch.nn.functional.softmax(outputs, dim=1)
+            acc = (outputs_softmax.argmax(1) == target_labels).sum().item()
+            f1 = f1_score(target_labels.cpu().numpy(), outputs_softmax.argmax(1).cpu().numpy(), average='micro')
+            stats.update(loss.item(), acc, len(target_labels), f1)
+
+            # torch.cuda.empty_cache()
+            # tensor_count = 0
+            # for obj in gc.get_objects():
+            #     try:
+            #         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+            #             tensor_count += 1
+            #     except:
+            #         pass
+            # count += 1
+            # if count % 100 == 0 or count == 363:
+            #     print('---Step--- : ', count)
+            #     print("---Tensor count : ", tensor_count)
+            #     mem_usage_after = process.memory_info().rss / 1024 / 1024
+            #     gpu_mem_usage_after = torch.cuda.memory_allocated() / 1024 / 1024
+            #     print(f"---Memory usage : {mem_usage_after}")
+            #     print(f"---GPU memory usage :{gpu_mem_usage_after}")
+            #     print(f"---Max GPU memory usage : {torch.cuda.max_memory_allocated() / 1024 / 1024}")
+            #     mem_usage = mem_usage_after
+            #     gpu_mem_usage = gpu_mem_usage_after
+
     return stats.get_stats()
 
 @hydra.main(config_path='../config/', config_name='main')

@@ -33,7 +33,12 @@ class PreprocessOntonotes():
             # Remove instances with sentence no longer than 15 words
             df = df[df['words'].apply(len) > 15]
 
-        df['sentence'] = df['words'].apply(lambda x: ' '.join(x))
+        def _get_sentence(words):
+            if len(words) > 150:
+                return ' '.join(words[:150])
+            return ' '.join(words)
+
+        df['sentence'] = df['words'].apply(lambda x: _get_sentence(x))
         df = df.drop(['words'], axis=1)
 
         def _mapping_ner(ner):
@@ -51,6 +56,14 @@ class PreprocessOntonotes():
         df = df.drop(['named_entities'], axis=1)
 
         df.loc[:,'pos_tags'] = df['pos_tags'].apply(list)
+
+        def truncate(lst):
+            if len(lst) > 150:
+                return lst[:150]
+            return lst
+        
+        df.loc[:,'pos_tags'] = df['pos_tags'].apply(truncate)
+        df.loc[:,'mapped_named_entities'] = df['mapped_named_entities'].apply(truncate)
 
         if self.is_train:
             df = df.drop_duplicates(subset=['sentence'], keep='first')
@@ -71,7 +84,7 @@ class PreprocessOntonotes():
         
         df = df[~df.pos_tags.apply(_check_empty)]
         return df
-    
+
     # def _get_pos_label(self, df):
 
     #     def _choose_pos(pos_tags):
@@ -91,11 +104,10 @@ class PreprocessOntonotes():
         return
     
 if __name__ == '__main__':
-    # test validation train
+    # test val train
 
-    path = '../dataset/ontonotesv5_english_v12_train.parquet'
-    save_path = '../dataset/ontonotesv5_english_v12_train_processed.csv'
+    path = '../../dataset/ontonotesv5/train.parquet'
+    save_path = '../../dataset/ontonotesv5/train_processed.csv'
     preprocess = PreprocessOntonotes(path, is_train=True)
     df = preprocess.preprocess()
     preprocess.save(save_path, df)
-    print(df.head())
