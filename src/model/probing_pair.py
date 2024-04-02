@@ -20,6 +20,9 @@ class ProbingPair(nn.Module):
         for param in model.parameters():
             param.requires_grad = False
 
+    def get_state_dict(self):
+        return self.subject_model.state_dict()
+
     def forward(self, inputs):
         """
         :param inputs: a tuple of subject model inputs, and target spans. The spans are needed for the pooler to select
