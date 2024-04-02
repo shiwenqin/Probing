@@ -12,16 +12,11 @@ class AttentionPooler(nn.Module):
     def __init__(self, input_dim, hidden_dim, layer_to_probe, single_span, concat=False):
         super().__init__()
 
-        self.concat = concat
-        if concat and layer_to_probe != 0:
-            input_dim *= 2
-
         self.in_projection = nn.ModuleList([nn.Linear(input_dim, hidden_dim),
                                             nn.Linear(input_dim, hidden_dim)])
         self.attention_scorers = nn.ModuleList([nn.Linear(hidden_dim, 1, bias=False),
                                                 nn.Linear(hidden_dim, 1, bias=False)])
 
-        self.layer_to_probe = layer_to_probe
         self.single_span = single_span
 
     def forward(self, hidden_states, target_spans):
@@ -50,11 +45,6 @@ class AttentionPooler(nn.Module):
         :param k: one of two span specific parameter sets to use with `k` in [0, 1].
         :return: a tensor of pooled span embeddings.
         """
-        
-        if self.concat and self.layer_to_probe != 0:
-            hidden_states = torch.cat([hidden_states[self.layer_to_probe], hidden_states[0]], dim=-1)
-        else:
-            hidden_states = hidden_states[self.layer_to_probe]
 
         embed_spans = [hidden_states[i, a:b] for i, a, b in target_spans]
 
