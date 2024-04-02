@@ -1,9 +1,9 @@
 from abc import abstractmethod, ABC
+from pathlib import Path
 
 import torch
 from torch.nn import Module
-from transformers import AutoModel
-
+from transformers import AutoModel, AutoConfig
 
 class Subject(Module, ABC):
 
@@ -38,4 +38,17 @@ class HuggingFace(Subject):
 
     def _build_bert(self):
         model = AutoModel.from_pretrained(self.model_name)
+        return model
+
+class Untrained(Subject):
+    """Untrained, randomly initialized BERT model."""
+
+    def __init__(self, model_name):
+        super().__init__(model_name)
+
+    def _build_bert(self):
+        config_path = Path(self.model_name, 'model_config.json')
+
+        config = AutoConfig.from_pretrained(config_path)
+        model = AutoModel(config)
         return model
