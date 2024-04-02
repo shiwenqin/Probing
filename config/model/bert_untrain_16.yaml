@@ -1,0 +1,10 @@
+name: bert_untrain_16
+type: encoder
+
+model_path: /localdisk/data2/Users/s2618109/codes/cramming/outputs/no_pretrain_16_layer/checkpoints/ScriptableCrammedBERT_2024-03-11
+output_dim: 768
+layer_num: 16
+layer_to_probe: 16
+vocab_size: 32768
+
+save_path: ${hydra:runtime.cwd}/../models/${model.name}.safetensor

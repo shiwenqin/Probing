@@ -9,12 +9,14 @@ gradient_accumulation_steps: 1
 early_stopping_patience: 5
 min_delta: 0.001
 gradient_clip: 5.0
-train_size: 0.1 # percentage of training data to use each epoch
+train_size: 1 # percentage of training data to use each epoch
 
 # Task Specific Parameters
 num_classes: 51
 single_span: true
 concat: true # whether to concatenate the first and current hidden states
+
+freeze_subject: true
 
 # Data
 train_file: ${hydra:runtime.cwd}/../dataset/ontonotesv5/train_processed.parquet

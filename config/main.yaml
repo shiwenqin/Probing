@@ -7,3 +7,4 @@ defaults:
   - _self_
 
 name: default
+save_model: false
