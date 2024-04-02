@@ -29,7 +29,7 @@ def build_probing_model(cfg):
     subject = HuggingFace(cfg.model.model_path).to(device)
     pooler = choose_pooler(cfg).to(device)
     probe = choose_probe(cfg).to(device)
-    return ProbingPair(subject, pooler, probe).to(device)
+    return ProbingPair(subject, pooler, probe, cfg.task.freeze_subject).to(device)
 
 def load_tokenizer(cfg):
     '''
