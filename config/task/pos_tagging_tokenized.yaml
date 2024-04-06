@@ -11,6 +11,8 @@ min_delta: 0.001
 gradient_clip: 5.0
 train_size: 1 # percentage of training data to use each epoch
 
+save_intermediates: false
+
 # Task Specific Parameters
 num_classes: 51
 single_span: true
