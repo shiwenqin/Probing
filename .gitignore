@@ -2,6 +2,7 @@ trail/
 models/
 src/wandb/
 src/outputs/
+compare/
 
 *.sh
 
