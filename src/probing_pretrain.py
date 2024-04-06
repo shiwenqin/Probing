@@ -13,7 +13,7 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from sklearn.metrics import f1_score
-from safetensors.torch import save_file
+from safetensors.torch import save_file, load_file
 
 import utils
 from model.pooling import choose_pooler
@@ -34,10 +34,21 @@ def build_probing_model(cfg):
     with open(os.path.join(cfg.model.model_path, "model_config.json"), "r") as file:
         cfg_arch = OmegaConf.create(json.load(file))
     subject = construct_crammed_bert(cfg_arch, cfg.model.vocab_size, cfg.task.num_classes).to(device)
-    #subject = Untrained(cfg.model.model_path).to(device)
+    subject = load_weights(cfg, subject)
     pooler = choose_pooler(cfg).to(device)
     probe = choose_probe(cfg).to(device)
     return ProbingPair(subject, pooler, probe, cfg.task.freeze_subject).to(device)
+
+def load_weights(cfg, model):
+    state_dict = load_file(os.path.join(cfg.model.model_path, "model.safetensors"))
+    sanitized_state = {}
+    for k, v in state_dict.items():
+        if k.startswith('encoder.'):
+            sanitized_state[k[8:]] = v
+        # else:
+        #     sanitized_state[k] = v
+    model.load_state_dict(sanitized_state)
+    return model
 
 def load_data(cfg):
     '''
@@ -109,6 +120,13 @@ def get_span(batch):
             pos_spans.append((index, span[0], span[1]))
     return torch.tensor(pos_spans)
 
+def save_model(model, save_path):
+    '''
+    Save the model to the path
+    '''
+    log.info(f'Saving model to {save_path}')
+    save_file(model.state_dict(), save_path)
+
 @hydra.main(config_path='../config/', config_name='main')
 def main(cfg):
     model = build_probing_model(cfg)
@@ -118,6 +136,9 @@ def main(cfg):
 
     log.info('Starting training...')
     for epoch in range(cfg.task.epochs):
+        if cfg.task.save_intermediates and cfg.save_model:
+            save_path = cfg.model.save_path + f'_{epoch}.safetensor'
+            save_model(model, save_path)
         train_loss, train_acc, train_f1 = train_loop(model, cfg, train, optimizer, criterion)
         val_loss, val_acc, val_f1 = val_test_loop(model, cfg, val, criterion)
         log.info(f'Epoch {epoch + 1}/{cfg.task.epochs} - Train Loss: {train_loss:.4f} - Train Acc: {train_acc:.4f} - Train F1: {train_f1:.4f} - Val Loss: {val_loss:.4f} - Val Acc: {val_acc:.4f} - Val F1: {val_f1:.4f}')
@@ -130,8 +151,7 @@ def main(cfg):
 
     log.info('Training finished!')
     if cfg.save_model:
-        log.info(f'Saving model to {cfg.model.save_path}')
-        save_file(model.get_state_dict(), cfg.model.save_path)
+        save_model(model, cfg.model.save_path + '.safetensor')
 
 if __name__ == "__main__":
     main()
