@@ -3,6 +3,7 @@ models/
 src/wandb/
 src/outputs/
 compare/
+checkpoints/
 
 *.sh
 
