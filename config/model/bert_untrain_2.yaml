@@ -1,9 +1,9 @@
 name: bert_untrain_2
 type: encoder
 
-model_path: /localdisk/data2/Users/s2618109/codes/cramming/outputs/no_pretrain_2_layer/checkpoints/ScriptableCrammedBERT_2024-03-11
+model_path: ${hydra:runtime.cwd}/../checkpoints/no_pretrain_2_layer/
 output_dim: 768
-layer_num: 2
+layer_num: 16
 layer_to_probe: 2
 vocab_size: 32768
 

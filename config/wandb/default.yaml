@@ -1,4 +1,4 @@
 active: true
 
-project: ${model.name}_${task.name}
+project: probing
 name: Layer_${model.layer_to_probe}

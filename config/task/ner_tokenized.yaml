@@ -1,4 +1,4 @@
-name: pos_tagging
+name: named_entity_recognition
 data: ontonotesv5
 
 # Training Parameters
@@ -14,13 +14,13 @@ train_size: 1 # percentage of training data to use each epoch
 save_intermediates: false
 
 # Task Specific Parameters
-num_classes: 51
+num_classes: 19
 single_span: true
 concat: false # whether to concatenate the first and current hidden states
 
 freeze_subject: true
 
 # Data
-train_file: /localdisk/data1/shiwen_datasets/processed_ontonotes/pos/pos_train_processed.parquet
-val_file: /localdisk/data1/shiwen_datasets/processed_ontonotes/pos/pos_val_processed.parquet
-test_file: /localdisk/data1/shiwen_datasets/processed_ontonotes/pos/pos_test_processed.parquet
+train_file: /localdisk/data1/shiwen_datasets/processed_ontonotes/ner/ner_train_processed.parquet
+val_file: /localdisk/data1/shiwen_datasets/processed_ontonotes/ner/ner_val_processed.parquet
+test_file: /localdisk/data1/shiwen_datasets/processed_ontonotes/ner/ner_test_processed.parquet
