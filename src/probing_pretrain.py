@@ -74,14 +74,19 @@ def train_loop(model, cfg, train, optimizer, criterion):
     Main training loop (for each epoch)
     '''
     data = train.sample(frac=cfg.task.train_size).reset_index(drop=True)
-    #data = train
     model.train()
     stats = utils.StatTracker()
     for batch in tqdm(np.array_split(data, len(data) // cfg.task.batch_size), desc='Training'):
         optimizer.zero_grad()
         inputs = torch.tensor(np.vstack(batch['input_ids'])).to(device)
-        target_spans = get_span(batch).to(device)
-        target_labels = torch.tensor(np.concatenate(batch['labels'].values)).to(device)
+        if cfg.task.single_span:
+            target_spans = get_span(batch).to(device)
+        else:
+            target_spans = get_span_double(batch).to(device)
+        try:
+            target_labels = torch.tensor(np.concatenate(batch['labels'].values)).to(device)
+        except:
+            target_labels = torch.tensor(np.concatenate(batch['label'].values)).to(device)
         outputs = model([inputs, target_spans])
         loss = criterion(outputs, target_labels)
         loss.backward()
@@ -102,8 +107,14 @@ def val_test_loop(model, cfg, data, criterion):
     with torch.no_grad():
         for batch in tqdm(np.array_split(data, len(data) // cfg.task.batch_size), desc='Validation'):
             inputs = torch.tensor(np.vstack(batch['input_ids'])).to(device)
-            target_spans = get_span(batch).to(device)
-            target_labels = torch.tensor(np.concatenate(batch['labels'].values)).to(device)
+            if cfg.task.single_span:
+                target_spans = get_span(batch).to(device)
+            else:
+                target_spans = get_span_double(batch).to(device)
+            try:
+                target_labels = torch.tensor(np.concatenate(batch['labels'].values)).to(device)
+            except:
+                target_labels = torch.tensor(np.concatenate(batch['label'].values)).to(device)
             outputs = model([inputs, target_spans])
             loss = criterion(outputs, target_labels)
             outputs_softmax = torch.nn.functional.softmax(outputs, dim=1)
@@ -112,13 +123,25 @@ def val_test_loop(model, cfg, data, criterion):
             stats.update(loss.item(), acc, len(target_labels), f1)
     return stats.get_stats()
 
-
 def get_span(batch):
-    pos_spans = []
+    batch_spans = []
     for index, spans in enumerate(batch['spans']):
         for span in spans:
-            pos_spans.append((index, span[0], span[1]))
-    return torch.tensor(pos_spans)
+            batch_spans.append((index, span[0], span[1]))
+    return torch.tensor(batch_spans)
+
+def get_span_double(batch):
+    batch_spans1 = []
+    batch_spans2 = []
+
+    for index, spans in enumerate(batch['span1']):
+        for span in spans:
+            batch_spans1.append((index, span[0], span[1]))
+    for index, spans in enumerate(batch['span2']):
+        for span in spans:
+            batch_spans2.append((index, span[0], span[1]))
+    return torch.tensor([batch_spans1, batch_spans2])
+    
 
 def save_model(model, save_path):
     '''
