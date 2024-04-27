@@ -1,6 +1,10 @@
 name: constituent_labeling
 data: ontonotes
 
+save_intermediates: false
+freeze_subject: true
+data_path: /localdisk/data1/Data/processed_ontonotes/
+
 # Training Parameters
 batch_size: 128
 epochs: 10

@@ -1,6 +1,10 @@
 name: coreference
 data: dpr
 
+save_intermediates: false
+freeze_subject: true
+data_path: /localdisk/data1/Data/processed_ontonotes/
+
 # Training Parameters
 batch_size: 16
 epochs: 10
