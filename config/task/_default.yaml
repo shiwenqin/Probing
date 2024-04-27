@@ -1,0 +1,6 @@
+
+save_intermediates: false
+
+freeze_subject: true
+
+data_path: /localdisk/data1/Data/processed_ontonotes/
