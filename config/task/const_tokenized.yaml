@@ -1,0 +1,26 @@
+name: constituent_labeling
+data: ontonotes
+
+# Training Parameters
+batch_size: 128
+epochs: 10
+learning_rate: 1e-4
+gradient_accumulation_steps: 1
+early_stopping_patience: 5
+min_delta: 0.005
+gradient_clip: 5.0
+train_size: 1 # percentage of training data to use each epoch
+
+save_intermediates: false
+
+# Task Specific Parameters
+num_classes: 30
+single_span: true
+concat: false # whether to concatenate the first and current hidden states
+
+freeze_subject: true
+
+# Data
+train_file: /localdisk/data1/Data/processed_ontonotes/const/train_processed.parquet
+val_file: /localdisk/data1/Data/processed_ontonotes/const/val_processed.parquet
+test_file: /localdisk/data1/Data/processed_ontonotes/const/test_processed.parquet
