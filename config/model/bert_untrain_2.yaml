@@ -7,4 +7,4 @@ layer_num: 16
 layer_to_probe: 2
 vocab_size: 32768
 
-save_path: ${hydra:runtime.cwd}/../models/${model.name}
+save_path: ${hydra:runtime.cwd}/../models/${wandb.name}
