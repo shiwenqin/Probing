@@ -2,8 +2,6 @@ import warnings
 import os
 import json
 import logging as log
-warnings.filterwarnings('ignore')
-log.getLogger(__name__).setLevel(log.INFO)
 
 import torch
 import hydra
@@ -22,6 +20,9 @@ from model.probe import choose_probe
 from model.subject import Untrained
 from architectures.crammed_bert import construct_crammed_bert
 from get_spans import choose_span_getter
+
+warnings.filterwarnings('ignore')
+log.getLogger(__name__).setLevel(log.INFO)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 log.info(f'Using device: {device}')
@@ -83,10 +84,7 @@ def train_loop(model, cfg, train, optimizer, criterion):
             target_spans = get_span(batch).to(device)
         else:
             target_spans = get_span_double(batch).to(device)
-        try:
-            target_labels = torch.tensor(np.concatenate(batch['labels'].values)).to(device)
-        except:
-            target_labels = torch.tensor(np.concatenate(batch['label'].values)).to(device)
+        target_labels = torch.tensor(np.concatenate(batch['labels'].values)).to(device)
         outputs = model([inputs, target_spans])
         loss = criterion(outputs, target_labels)
         loss.backward()
@@ -111,10 +109,7 @@ def val_test_loop(model, cfg, data, criterion):
                 target_spans = get_span(batch).to(device)
             else:
                 target_spans = get_span_double(batch).to(device)
-            try:
-                target_labels = torch.tensor(np.concatenate(batch['labels'].values)).to(device)
-            except:
-                target_labels = torch.tensor(np.concatenate(batch['label'].values)).to(device)
+            target_labels = torch.tensor(np.concatenate(batch['labels'].values)).to(device)
             outputs = model([inputs, target_spans])
             loss = criterion(outputs, target_labels)
             outputs_softmax = torch.nn.functional.softmax(outputs, dim=1)
