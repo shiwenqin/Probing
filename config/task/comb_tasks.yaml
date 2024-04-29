@@ -1,9 +1,9 @@
 defaults:
   - tasks:
-    #- pos
-    #- const
+    - pos
+    - const
     - ner
-    #- srl
+    - srl
     - coref
     - rc
 
