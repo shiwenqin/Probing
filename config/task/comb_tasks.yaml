@@ -1,0 +1,13 @@
+defaults:
+  - tasks:
+    #- pos
+    #- const
+    - ner
+    #- srl
+    - coref
+    - rc
+
+data_path: /localdisk/data1/Data/processed_ontonotes/
+
+save_intermediates: false
+freeze_subject: false

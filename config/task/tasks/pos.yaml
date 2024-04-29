@@ -1,0 +1,23 @@
+pos:
+  name: pos_tagging
+  data: ontonotesv5
+
+  # Training Parameters
+  batch_size: 64
+  epochs: 3
+  learning_rate: 5e-4
+  gradient_accumulation_steps: 1
+  early_stopping_patience: 5
+  min_delta: 0.001
+  gradient_clip: 5.0
+  train_size: 1 # percentage of training data to use each epoch
+
+  # Task Specific Parameters
+  num_classes: 51
+  single_span: true
+  concat: false # whether to concatenate the first and current hidden states
+
+  # Data
+  train_file: ${task.data_path}/pos/pos_train_processed.parquet
+  val_file: ${task.data_path}/pos/pos_val_processed.parquet
+  test_file: ${task.data_path}/pos/pos_test_processed.parquet

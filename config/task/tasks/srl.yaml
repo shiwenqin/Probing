@@ -1,0 +1,23 @@
+srl:
+  name: relationship_classification
+  data: semeval
+
+  # Training Parameters
+  batch_size: 64
+  epochs: 5
+  learning_rate: 5e-4
+  gradient_accumulation_steps: 1
+  early_stopping_patience: 5
+  min_delta: 0.005
+  gradient_clip: 5.0
+  train_size: 1 # percentage of training data to use each epoch
+
+  # Task Specific Parameters
+  num_classes: 28
+  single_span: false
+  concat: false # whether to concatenate the first and current hidden states
+
+  # Data
+  train_file: ${task.data_path}/srl/train_processed.parquet
+  val_file: ${task.data_path}/srl/val_processed.parquet
+  test_file: ${task.data_path}/srl/test_processed.parquet
