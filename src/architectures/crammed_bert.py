@@ -33,7 +33,7 @@ class crammedBertConfig(PretrainedConfig):
         super().__init__(**kwargs)
 
 
-def construct_crammed_bert(cfg_arch, vocab_size, downstream_classes):
+def construct_crammed_bert(cfg_arch, vocab_size, downstream_classes = 0):
     """See the config file for details on what is possible."""
     config = crammedBertConfig(OmegaConf.to_container(cfg_arch, resolve=True))
     config.arch["embedding"]["vocab_size"] = vocab_size

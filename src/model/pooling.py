@@ -1,9 +1,15 @@
 import torch
 import torch.nn as nn
 
-def choose_pooler(cfg):
+def choose_pooler(cfg, task_cfg = None):
+    if task_cfg:
+        single_span = task_cfg.single_span
+        concat = task_cfg.concat
+    else:
+        single_span = cfg.pooling.single_span
+        concat = cfg.pooling.concat
     if cfg.pooling.name == 'attention':
-        return AttentionPooler(cfg.pooling.input_dim, cfg.pooling.hidden_dim, cfg.pooling.layer_to_probe, cfg.pooling.single_span, cfg.pooling.concat)
+        return AttentionPooler(cfg.pooling.input_dim, cfg.pooling.hidden_dim, cfg.pooling.layer_to_probe, single_span, concat)
     else:
         raise ValueError(f'Invalid pooler name: {cfg.pooler.name}')
 

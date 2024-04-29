@@ -1,10 +1,16 @@
 import torch.nn as nn
 
-def choose_probe(cfg):
+def choose_probe(cfg, task_cfg=None):
+    if task_cfg:
+        output_dim = task_cfg.num_classes
+        single_span = task_cfg.single_span
+    else:
+        output_dim = cfg.probe.output_dim
+        single_span = cfg.probe.single_span
     if cfg.probe.name == 'mlp':
-        return MLP(cfg.probe.input_dim, cfg.probe.hidden_dim, cfg.probe.output_dim, cfg.probe.dropout, cfg.probe.single_span)
+        return MLP(cfg.probe.input_dim, cfg.probe.hidden_dim, output_dim, cfg.probe.dropout, single_span)
     elif cfg.probe.name == 'linear':
-        return LinearClassifier(cfg.probe.input_dim, cfg.probe.output_dim, cfg.probe.single_span)
+        return LinearClassifier(cfg.probe.input_dim, output_dim, single_span)
     else:
         raise ValueError(f'Invalid probe name: {cfg.probe.name}')
 
